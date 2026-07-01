@@ -1,0 +1,15 @@
+运行
+cd g:\Tailscale\flutterp
+flutter pub get
+flutter run -d windows
+
+
+打包
+cd g:\Tailscale\flutterp
+powershell -ExecutionPolicy Bypass -File scripts\build_release.ps1
+
+
+构建错误执行
+cd g:\Tailscale\flutterp
+flutter clean
+powershell -ExecutionPolicy Bypass -File scripts\build_release.ps1

@@ -1,0 +1,312 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/app_design.dart';
+import '../../models/market_models.dart';
+import '../../providers/app_providers.dart';
+import '../../providers/fortune_provider.dart';
+import '../../services/fortune_service.dart';
+import '../../services/window_controller.dart';
+import '../widgets/fortune_level_art.dart';
+import 'window_chrome.dart';
+
+class MiniViewLayout {
+  static const visibleRows = 3;
+  static const rowHeight = 18.0;
+  static const hPad = 20.0;
+  static const vPad = 10.0;
+  static const stockWidth = 168.0;
+  static const goldWidth = 118.0;
+  static const goldHeight = 42.0;
+
+  static double stockHeight() => vPad + visibleRows * rowHeight;
+
+  static Size sizeFor(MarketState state, {FortuneStick? fortune}) {
+    if (state.activeTab == MainTab.fortune) {
+      if (fortune != null) return fortuneSize(fortune);
+      return const Size(96, 36);
+    }
+    if (state.activeTab == MainTab.stock) {
+      return Size(stockWidth, stockHeight());
+    }
+    return const Size(goldWidth, goldHeight);
+  }
+
+  static Size fortuneSize(FortuneStick stick) {
+    final levelLen = stick.level.length * 11.0;
+    final titleLen = stick.title.length * 7.5;
+    final textW = levelLen > titleLen ? levelLen : titleLen;
+    final w = (34 + textW + 14).clamp(108.0, 168.0);
+    final h = stick.title.length > 5 ? 42.0 : 38.0;
+    return Size(w, h);
+  }
+}
+
+class MiniView extends ConsumerStatefulWidget {
+  const MiniView({super.key});
+
+  @override
+  ConsumerState<MiniView> createState() => _MiniViewState();
+}
+
+class _MiniViewState extends ConsumerState<MiniView> {
+  double _pillOpacity = 0.92;
+
+  void _restore() => ref.read(windowControllerProvider.notifier).showNormal();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(marketProvider);
+    final fortuneUi = ref.watch(fortuneUiProvider);
+    final stockMode = state.activeTab == MainTab.stock;
+    final fortuneMode = state.activeTab == MainTab.fortune;
+    final d = context.design;
+    final fortuneStick = fortuneUi.daily;
+    final size = MiniViewLayout.sizeFor(state, fortune: fortuneMode ? fortuneStick : null);
+
+    return SizedBox(
+      width: size.width,
+      height: size.height,
+      child: WindowDragRegion(
+        child: GestureDetector(
+          onDoubleTap: _restore,
+          behavior: HitTestBehavior.opaque,
+          child: MouseRegion(
+            onEnter: (_) => setState(() => _pillOpacity = 1.0),
+            onExit: (_) => setState(() => _pillOpacity = 0.92),
+            cursor: SystemMouseCursors.grab,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 160),
+              opacity: _pillOpacity,
+              child: fortuneMode
+                  ? _fortuneShell(fortuneStick, d)
+                  : stockMode
+                      ? _stockShell(state, d)
+                      : _goldShell(state, d),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _fortuneShell(FortuneStick? stick, AppDesign d) {
+    final bg = Colors.white.withValues(alpha: 0.7);
+    if (stick == null) {
+      return DecoratedBox(
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
+        child: Center(
+          child: Text(
+            '财神签',
+            style: TextStyle(color: d.gold, fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+        ),
+      );
+    }
+    final levelColor = switch (FortuneLevelArt.normalize(stick.level)) {
+      '上上签' => const Color(0xFFE53935),
+      '上签' => d.gold,
+      '中上签' => const Color(0xFFFF8F00),
+      '中下签' => const Color(0xFF7E57C2),
+      '下签' || '下下签' => const Color(0xFF546E7A),
+      _ => d.textSecondary,
+    };
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          children: [
+            FortuneLevelArt(level: stick.level, size: 26),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    stick.level,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: levelColor, height: 1.1),
+                  ),
+                  if (stick.title.isNotEmpty)
+                    Text(
+                      stick.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 9, color: d.textSecondary.withValues(alpha: 0.85), height: 1.15),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 金价迷你：全透明底，仅文字。
+  Widget _goldShell(MarketState state, AppDesign d) {
+    final price = state.snapshot.cnyPrice;
+    return Center(
+      child: Text(
+        price > 0 ? price.toStringAsFixed(2) : '--',
+        style: TextStyle(
+          color: d.goldLight,
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          height: 1.05,
+          shadows: [
+            Shadow(color: Colors.black.withValues(alpha: 0.85), blurRadius: 8),
+            Shadow(color: d.gold.withValues(alpha: 0.65), blurRadius: 3),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 自选迷你：固定高度 + 滚动播报（每次显示 3 条，自下而上）。
+  Widget _stockShell(MarketState state, AppDesign d) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: d.miniPill,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.35),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: MiniViewLayout.hPad / 2,
+            vertical: MiniViewLayout.vPad / 2,
+          ),
+          child: _MiniStockTicker(state: state, design: d),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniStockTicker extends StatefulWidget {
+  const _MiniStockTicker({required this.state, required this.design});
+
+  final MarketState state;
+  final AppDesign design;
+
+  @override
+  State<_MiniStockTicker> createState() => _MiniStockTickerState();
+}
+
+class _MiniStockTickerState extends State<_MiniStockTicker> {
+  final _scroll = ScrollController();
+  Timer? _timer;
+  bool _hovering = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startScroll());
+  }
+
+  @override
+  void didUpdateWidget(_MiniStockTicker old) {
+    super.didUpdateWidget(old);
+    if (old.state.stocks.rows.length != widget.state.stocks.rows.length) {
+      _timer?.cancel();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startScroll());
+    }
+  }
+
+  void _startScroll() {
+    _timer?.cancel();
+    if (!_scroll.hasClients) return;
+    final rows = widget.state.stocks.rows;
+    if (rows.length <= MiniViewLayout.visibleRows) return;
+
+    _timer = Timer.periodic(const Duration(milliseconds: 45), (_) {
+      if (_hovering || !_scroll.hasClients) return;
+      final max = _scroll.position.maxScrollExtent;
+      if (max <= 0) return;
+      var next = _scroll.offset + 0.55;
+      if (next >= max) next = 0;
+      _scroll.jumpTo(next);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final board = widget.state.stocks;
+    final d = widget.design;
+
+    if (board.error.isNotEmpty) {
+      return Text(
+        board.error.substring(0, board.error.length.clamp(0, 20)),
+        style: TextStyle(color: d.textSecondary, fontSize: 11),
+      );
+    }
+    if (board.rows.isEmpty) {
+      return Text('暂无自选', style: TextStyle(color: d.textSecondary, fontSize: 11));
+    }
+
+    final headers = board.headers;
+    final nameI = headers.indexOf('名称');
+    final priceI = headers.indexOf('现价');
+    final pctI = headers.indexOf('涨跌幅');
+
+    final viewH = MiniViewLayout.visibleRows * MiniViewLayout.rowHeight;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: SizedBox(
+        height: viewH,
+        child: ListView.builder(
+          controller: _scroll,
+          padding: EdgeInsets.zero,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: board.rows.length,
+          itemExtent: MiniViewLayout.rowHeight,
+          itemBuilder: (_, i) {
+            final row = board.rows[i];
+            final nameRaw = nameI >= 0 && nameI < row.cells.length ? row.cells[nameI] : '';
+            final name = nameRaw.length > 6 ? nameRaw.substring(0, 6) : nameRaw;
+            final price = priceI >= 0 && priceI < row.cells.length ? row.cells[priceI] : '';
+            final pct = pctI >= 0 && pctI < row.cells.length ? row.cells[pctI] : '';
+            return Text(
+              '$name  $price  $pct'.trim(),
+              style: TextStyle(
+                fontSize: 10,
+                color: _lineColor(d, pct),
+                height: 1.2,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Color _lineColor(AppDesign d, String pct) {
+    if (pct.startsWith('+')) return d.rise;
+    if (pct.startsWith('-')) return d.fall;
+    return d.textSecondary;
+  }
+}
