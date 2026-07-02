@@ -14,19 +14,19 @@ import 'window_chrome.dart';
 
 class MiniViewLayout {
   static const visibleRows = 3;
-  static const rowHeight = 18.0;
-  static const hPad = 20.0;
-  static const vPad = 10.0;
-  static const stockWidth = 168.0;
-  static const goldWidth = 118.0;
-  static const goldHeight = 42.0;
+  static const rowHeight = 20.0;
+  static const hPad = 24.0;
+  static const vPad = 14.0;
+  static const stockWidth = 238.0;
+  static const goldWidth = 168.0;
+  static const goldHeight = 62.0;
 
-  static double stockHeight() => vPad + visibleRows * rowHeight;
+  static double stockHeight() => vPad + visibleRows * rowHeight + 10;
 
   static Size sizeFor(MarketState state, {FortuneStick? fortune}) {
     if (state.activeTab == MainTab.fortune) {
       if (fortune != null) return fortuneSize(fortune);
-      return const Size(96, 36);
+      return const Size(172, 62);
     }
     if (state.activeTab == MainTab.stock) {
       return Size(stockWidth, stockHeight());
@@ -35,11 +35,11 @@ class MiniViewLayout {
   }
 
   static Size fortuneSize(FortuneStick stick) {
-    final levelLen = stick.level.length * 11.0;
-    final titleLen = stick.title.length * 7.5;
+    final levelLen = stick.level.length * 15.0;
+    final titleLen = stick.title.length * 10.0;
     final textW = levelLen > titleLen ? levelLen : titleLen;
-    final w = (34 + textW + 14).clamp(108.0, 168.0);
-    final h = stick.title.length > 5 ? 42.0 : 38.0;
+    final w = (54 + textW + 24).clamp(172.0, 238.0);
+    final h = stick.title.length > 5 ? 72.0 : 64.0;
     return Size(w, h);
   }
 }
@@ -119,11 +119,11 @@ class _MiniViewState extends ConsumerState<MiniView> {
         borderRadius: BorderRadius.circular(6),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Row(
           children: [
-            FortuneLevelArt(level: stick.level, size: 26),
-            const SizedBox(width: 6),
+            FortuneLevelArt(level: stick.level, size: 38),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -133,14 +133,14 @@ class _MiniViewState extends ConsumerState<MiniView> {
                     stick.level,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: levelColor, height: 1.1),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: levelColor, height: 1.1),
                   ),
                   if (stick.title.isNotEmpty)
                     Text(
                       stick.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 9, color: d.textSecondary.withValues(alpha: 0.85), height: 1.15),
+                      style: TextStyle(fontSize: 11, color: d.textSecondary.withValues(alpha: 0.85), height: 1.15),
                     ),
                 ],
               ),
@@ -151,7 +151,7 @@ class _MiniViewState extends ConsumerState<MiniView> {
     );
   }
 
-  /// 金价迷你：全透明底，仅文字。
+  /// 金价迷你：透明底，仅保留价格文字。
   Widget _goldShell(MarketState state, AppDesign d) {
     final price = state.snapshot.cnyPrice;
     return Center(
@@ -159,7 +159,7 @@ class _MiniViewState extends ConsumerState<MiniView> {
         price > 0 ? price.toStringAsFixed(2) : '--',
         style: TextStyle(
           color: d.goldLight,
-          fontSize: 20,
+          fontSize: 28,
           fontWeight: FontWeight.w800,
           height: 1.05,
           shadows: [
@@ -293,7 +293,7 @@ class _MiniStockTickerState extends State<_MiniStockTicker> {
             return Text(
               '$name  $price  $pct'.trim(),
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 11,
                 color: _lineColor(d, pct),
                 height: 1.2,
               ),

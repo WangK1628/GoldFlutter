@@ -44,5 +44,6 @@ powershell -ExecutionPolicy Bypass -File scripts\build_release.ps1
 输出：
 - `dist\GoldMonitor\gold_monitor.exe` — 带应用图标
 - `dist\GoldMonitor.zip` — 压缩包
+- `dist\GoldMonitor\install_runtime_and_run.bat` — 目标电脑首启推荐（自动安装 VC++ 运行库后启动）
 
 目录内仅含运行所需：`gold_monitor.exe`、Flutter/插件 DLL、`data/`（含 `app_icon.ico` 托盘图标），无多余第三方库。

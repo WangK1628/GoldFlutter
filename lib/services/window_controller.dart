@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
@@ -12,6 +12,7 @@ import '../providers/app_providers.dart';
 import '../providers/fortune_provider.dart';
 import '../services/autostart_service.dart';
 import '../services/fortune_service.dart';
+import '../services/win_mouse.dart';
 import '../services/window_layout.dart';
 import '../ui/widgets/mini_view.dart';
 
@@ -55,23 +56,28 @@ class WindowController extends StateNotifier<ViewMode> {
     final crossTransition =
         prev != ViewMode.hidden && mode != ViewMode.hidden && prev != mode;
     if (crossTransition) {
+      WinMouse.prepareForHide();
       await windowManager.hide();
+      WinMouse.prepareForHide();
     }
 
     switch (mode) {
       case ViewMode.hidden:
-        state = mode;
-        await windowManager.hide();
+        await _performHide(updateState: true);
       case ViewMode.normal:
         await _prepareNormal();
         state = mode;
         await windowManager.show();
+        await _restoreMouseAfterShow();
         await windowManager.focus();
         await syncAlwaysOnTop(focused: true);
       case ViewMode.mini:
-        await _prepareMini();
         state = mode;
+        await WidgetsBinding.instance.endOfFrame;
+        await _prepareMini();
         await windowManager.show();
+        await _restoreMouseAfterShow();
+        await _prepareMini();
         await windowManager.focus();
         await syncAlwaysOnTop(focused: true);
     }
@@ -132,23 +138,40 @@ class WindowController extends StateNotifier<ViewMode> {
   Future<void> enterMini() => applyMode(ViewMode.mini);
   Future<void> showNormal() => applyMode(ViewMode.normal);
 
-  Future<void> hide() async {
-    if (state == ViewMode.hidden || _hiding) return;
+  Future<void> hide() => _performHide(updateState: true);
+
+  Future<void> _performHide({required bool updateState}) async {
+    if ((state == ViewMode.hidden && updateState) || _hiding) return;
     _hiding = true;
     try {
-      state = ViewMode.hidden;
-      ref.read(configProvider.notifier).update((c) {
-        c.miniMode = false;
-        return c;
-      });
+      if (updateState) {
+        state = ViewMode.hidden;
+        ref.read(configProvider.notifier).update((c) {
+          c.miniMode = false;
+          return c;
+        });
+      }
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        WinMouse.prepareForHide();
+        if (Platform.isWindows) {
+          await windowManager.setIgnoreMouseEvents(true);
+        }
+        await windowManager.setAlwaysOnTop(false);
+        await windowManager.blur();
         await windowManager.hide();
+        WinMouse.prepareForHide();
       }
       unawaited(ref.read(configProvider.notifier).save());
       unawaited(TrayService.syncShowLabel(ViewMode.hidden));
     } finally {
       _hiding = false;
     }
+  }
+
+  Future<void> _restoreMouseAfterShow() async {
+    if (!Platform.isWindows) return;
+    await windowManager.setIgnoreMouseEvents(false);
+    await applyWindowFlags(ref.read(configProvider));
   }
 
   Future<void> requestSettings() async {
@@ -159,6 +182,9 @@ class WindowController extends StateNotifier<ViewMode> {
   }
 
   Future<void> onCloseRequested() async {
+    WinMouse.prepareForHide();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    WinMouse.prepareForHide();
     final cfg = ref.read(configProvider);
     if (cfg.closeHides) {
       await hide();
@@ -171,7 +197,7 @@ class WindowController extends StateNotifier<ViewMode> {
   Future<void> onMinimizeRequested() async {
     final cfg = ref.read(configProvider);
     if (cfg.minimizeToTray) {
-      await hide();
+      await enterMini();
       return;
     }
     await windowManager.minimize();

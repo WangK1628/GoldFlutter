@@ -189,7 +189,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   children: const [GoldTab(), StockTab(), FortuneTab()],
                 ),
               ),
-              const WindowDragRegion(child: StatusBar()),
+              const StatusBar(),
             ],
           ),
         ),

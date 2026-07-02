@@ -7,6 +7,8 @@ import 'package:window_manager/window_manager.dart';
 import '../models/market_models.dart';
 import '../providers/app_providers.dart';
 import '../services/autostart_service.dart';
+import '../services/win_mouse.dart';
+import '../services/single_instance.dart';
 import '../services/window_controller.dart';
 
 class DesktopBootstrap with WindowListener, TrayListener {
@@ -98,8 +100,10 @@ class DesktopBootstrap with WindowListener, TrayListener {
   }
 
   Future<void> _quit() async {
+    WinMouse.cancelModalDrag();
     await ref.read(windowControllerProvider.notifier).saveGeometry();
     await TrayService.destroy();
+    SingleInstance.dispose();
     await windowManager.destroy();
   }
 }

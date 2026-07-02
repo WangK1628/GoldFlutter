@@ -213,6 +213,17 @@ Win32Window::MessageHandler(HWND hwnd,
       }
       return 0;
 
+    case WM_SHOWWINDOW:
+      if (wparam == FALSE) {
+        ReleaseCapture();
+        SendMessage(hwnd, WM_CANCELMODE, 0, 0);
+      }
+      break;
+
+    case WM_EXITSIZEMOVE:
+      ReleaseCapture();
+      break;
+
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);
       return 0;

@@ -5,6 +5,7 @@ import '../../core/app_design.dart';
 import '../../models/market_models.dart';
 import '../../providers/app_providers.dart';
 import '../../services/window_controller.dart';
+import '../../services/win_mouse.dart';
 import '../../services/window_layout.dart';
 import '../screens/gold_expand_page.dart';
 import '../screens/stock_expand_page.dart';
@@ -38,58 +39,65 @@ class _NavBarState extends ConsumerState<NavBar> {
     final cfg = ref.watch(configProvider);
     final d = context.design;
 
-    return WindowDragRegion(
-      child: GestureDetector(
-        onDoubleTap: _onNavDoubleTap,
-        child: Container(
-          height: WindowLayout.navHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: d.navDecoration(),
-          child: Row(
-            children: [
-              Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
+    return Container(
+      height: WindowLayout.navHeight,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: d.navDecoration(),
+      child: Row(
+        children: [
+          Expanded(
+            child: WindowDragRegion(
+              child: GestureDetector(
+                onDoubleTap: _onNavDoubleTap,
+                behavior: HitTestBehavior.translucent,
+                child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(FluentIcons.circle_dollar, color: d.navAccent, size: 15),
-                      const SizedBox(width: 8),
-                      _tabGroup(
-                        ref,
-                        d,
-                        '黄金',
-                        MainTab.gold,
-                        state.activeTab,
-                        () => GoldExpandPage.open(context),
-                      ),
-                      if (cfg.stockBoard) ...[
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(FluentIcons.circle_dollar, color: d.navAccent, size: 15),
                         const SizedBox(width: 8),
                         _tabGroup(
                           ref,
                           d,
-                          '自选 ${state.stocks.codesCount}',
-                          MainTab.stock,
+                          '黄金',
+                          MainTab.gold,
                           state.activeTab,
-                          () => StockExpandPage.open(context),
+                          () => GoldExpandPage.open(context),
                         ),
+                        if (cfg.stockBoard) ...[
+                          const SizedBox(width: 8),
+                          _tabGroup(
+                            ref,
+                            d,
+                            '自选 ${state.stocks.codesCount}',
+                            MainTab.stock,
+                            state.activeTab,
+                            () => StockExpandPage.open(context),
+                          ),
+                        ],
+                        const SizedBox(width: 8),
+                        _tab(ref, d, '财神签', MainTab.fortune, state.activeTab),
                       ],
-                      const SizedBox(width: 8),
-                      _tab(ref, d, '财神签', MainTab.fortune, state.activeTab),
-                    ],
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 4),
-              _iconBtn(FluentIcons.refresh, '刷新', () => ref.read(marketProvider.notifier).refreshAll()),
-              _iconBtn(FluentIcons.settings, '设置', widget.onSettings),
-              _iconBtn(FluentIcons.mini_contract, '迷你模式', () => ref.read(windowControllerProvider.notifier).enterMini()),
-              _iconBtn(FluentIcons.chrome_minimize, '最小化', () => ref.read(windowControllerProvider.notifier).onMinimizeRequested()),
-              _iconBtn(FluentIcons.chrome_close, '关闭', () => ref.read(windowControllerProvider.notifier).onCloseRequested()),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(width: 4),
+          _iconBtn(FluentIcons.refresh, '刷新', () => ref.read(marketProvider.notifier).refreshAll()),
+          _iconBtn(FluentIcons.settings, '设置', widget.onSettings),
+          _iconBtn(FluentIcons.mini_contract, '迷你模式', () => ref.read(windowControllerProvider.notifier).enterMini()),
+          _iconBtn(FluentIcons.chrome_minimize, '最小化', () => ref.read(windowControllerProvider.notifier).onMinimizeRequested()),
+          _iconBtn(FluentIcons.chrome_close, '关闭', () {
+            WinMouse.prepareForHide();
+            ref.read(windowControllerProvider.notifier).onCloseRequested();
+          }),
+        ],
       ),
     );
   }
