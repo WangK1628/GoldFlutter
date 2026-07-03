@@ -56,6 +56,8 @@ class AppConfig {
     this.windowX = -1,
     this.windowY = -1,
     this.miniMode = false,
+    this.miniBall = false,
+    this.bossKeyEnabled = true,
     this.alerts = const [],
     this.networkTimeout = 10.0,
     this.cacheSeconds = 120,
@@ -119,6 +121,8 @@ class AppConfig {
   int windowX;
   int windowY;
   bool miniMode;
+  bool miniBall;
+  bool bossKeyEnabled;
   List<AlertRule> alerts;
   double networkTimeout;
   int cacheSeconds;
@@ -214,6 +218,8 @@ class AppConfig {
           'x': windowX,
           'y': windowY,
           'mini_mode': miniMode,
+          'mini_ball': miniBall,
+          'boss_key': bossKeyEnabled,
         },
         'alerts': alerts.map((a) => a.toJson()).toList(),
         'advanced': {
@@ -290,6 +296,8 @@ class AppConfig {
       windowX: w['x'] as int? ?? -1,
       windowY: w['y'] as int? ?? -1,
       miniMode: w['mini_mode'] as bool? ?? false,
+      miniBall: w['mini_ball'] as bool? ?? false,
+      bossKeyEnabled: w['boss_key'] as bool? ?? true,
       alerts: alertsRaw.map((e) => AlertRule.fromJson(e as Map<String, dynamic>)).toList(),
       networkTimeout: (adv['network_timeout'] as num?)?.toDouble() ?? 10.0,
       cacheSeconds: adv['cache_seconds'] as int? ?? 120,

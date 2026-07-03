@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart' as m;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,8 +25,7 @@ import '../widgets/price_panels.dart';
 
 import '../widgets/millionaire_panel.dart';
 import '../widgets/stock_table.dart';
-import '../widgets/toast.dart';
-
+import '../widgets/stock_add_sheet.dart';
 
 
 class StockTab extends ConsumerStatefulWidget {
@@ -124,7 +124,7 @@ class _StockTabState extends ConsumerState<StockTab> {
 
                 ),
 
-                VerticalDivider(width: 1, thickness: 1, color: d.cardBorder),
+                m.VerticalDivider(width: 1, thickness: 1, color: d.cardBorder),
 
                 const SizedBox(width: 6),
 
@@ -144,7 +144,7 @@ class _StockTabState extends ConsumerState<StockTab> {
 
                 ),
 
-                VerticalDivider(width: 1, thickness: 1, color: d.cardBorder),
+                m.VerticalDivider(width: 1, thickness: 1, color: d.cardBorder),
 
                 const SizedBox(width: 6),
 
@@ -174,151 +174,107 @@ class _StockTabState extends ConsumerState<StockTab> {
 
 
 
-class _StockToolbar extends ConsumerWidget {
-
+class _StockToolbar extends ConsumerStatefulWidget {
   const _StockToolbar({required this.controller});
-
-
 
   final TextEditingController controller;
 
+  @override
+  ConsumerState<_StockToolbar> createState() => _StockToolbarState();
+}
 
+class _StockToolbarState extends ConsumerState<_StockToolbar> {
+  final _chipScroll = ScrollController();
 
   @override
+  void dispose() {
+    _chipScroll.dispose();
+    super.dispose();
+  }
 
-  Widget build(BuildContext context, WidgetRef ref) {
-
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(marketProvider);
-
     final board = state.stocks;
-
     final d = context.design;
 
-
-
     return GmCard(
-
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-
-      child: Row(
-
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-
-          Text(sessionHint(), style: TextStyle(fontSize: 11, color: d.textMuted)),
-
-          const SizedBox(width: 8),
-
-          Expanded(
-
-            child: SingleChildScrollView(
-
-              scrollDirection: Axis.horizontal,
-
-              child: Row(
-
-                children: [
-
-                  for (final row in board.rows)
-
-                    Padding(
-
-                      padding: const EdgeInsets.only(right: 6),
-
-                      child: _Chip(
-
-                        label: row.cells.length > 1 ? row.cells[1] : row.meta.code,
-
-                        selected: row.meta.code == state.selectedStock,
-
-                        onTap: () {
-
-                          final code = row.meta.code;
-
-                          final next = code == state.selectedStock ? '' : code;
-
-                          ref.read(marketProvider.notifier).selectStock(next);
-
-                        },
-
-                      ),
-
+          Row(
+            children: [
+              Text(sessionHint(), style: TextStyle(fontSize: 11, color: d.textMuted)),
+              const Spacer(),
+              m.Tooltip(
+                message: '添加自选',
+                child: IconButton(
+                  icon: Icon(FluentIcons.add, size: 16, color: d.gold),
+                  style: ButtonStyle(backgroundColor: WidgetStateProperty.all(Colors.transparent)),
+                  onPressed: () => StockAddSheet.open(context),
+                ),
+              ),
+              SizedBox(
+                width: 120,
+                height: 30,
+                child: m.TextField(
+                  controller: widget.controller,
+                  style: TextStyle(fontSize: 12, color: d.textPrimary),
+                  decoration: m.InputDecoration(
+                    hintText: '代码',
+                    hintStyle: TextStyle(fontSize: 11, color: d.textMuted),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    border: m.OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: d.cardBorder),
                     ),
-
-                ],
-
-              ),
-
-            ),
-
-          ),
-
-          SizedBox(
-
-            width: 110,
-
-            height: 32,
-
-            child: TextField(
-
-              controller: controller,
-
-              style: TextStyle(fontSize: 12, color: d.textPrimary),
-
-              decoration: InputDecoration(
-
-                hintText: '添加 600519',
-
-                hintStyle: TextStyle(fontSize: 11, color: d.textMuted),
-
-                isDense: true,
-
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-
-                border: OutlineInputBorder(
-
-                  borderRadius: BorderRadius.circular(8),
-
-                  borderSide: BorderSide(color: d.cardBorder),
-
+                    suffixIcon: IconButton(
+                      icon: Icon(FluentIcons.search, size: 14, color: d.gold),
+                      onPressed: () => StockAddSheet.open(context),
+                    ),
+                  ),
+                  onSubmitted: (_) => StockAddSheet.open(context),
                 ),
-
-                suffixIcon: IconButton(
-
-                  icon: Icon(Icons.add, size: 18, color: d.gold),
-
-                  onPressed: () => _submit(context, ref),
-
-                ),
-
               ),
-
-              onSubmitted: (_) => _submit(context, ref),
-
-            ),
-
+            ],
           ),
-
+          if (board.rows.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 38,
+              child: m.Scrollbar(
+                controller: _chipScroll,
+                thumbVisibility: true,
+                interactive: true,
+                child: ListView.separated(
+                  controller: _chipScroll,
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.only(bottom: 12),
+                  itemCount: board.rows.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 6),
+                  itemBuilder: (_, i) {
+                    final row = board.rows[i];
+                    final label = stockRowName(row);
+                    return _Chip(
+                      label: label,
+                      selected: row.meta.code == state.selectedStock,
+                      onTap: () {
+                        final code = row.meta.code;
+                        final next = code == state.selectedStock ? '' : code;
+                        ref.read(marketProvider.notifier).selectStock(next);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
         ],
-
       ),
-
     );
-
   }
-
-
-
-  void _submit(BuildContext context, WidgetRef ref) {
-
-    final err = ref.read(marketProvider.notifier).addStock(controller.text);
-    if (err != null && context.mounted) {
-      showToast(ref, err);
-    }
-
-    controller.clear();
-
-  }
-
 }
 
 
@@ -343,26 +299,17 @@ class _Chip extends StatelessWidget {
 
     final d = context.design;
 
-    return FilterChip(
-
+    return m.FilterChip(
       label: Text(label, style: TextStyle(fontSize: 11, color: selected ? d.gold : d.textSecondary)),
-
       selected: selected,
-
       onSelected: (_) => onTap(),
-
       visualDensity: VisualDensity.compact,
-
       padding: EdgeInsets.zero,
-
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-
-      backgroundColor: d.chipBg,
-
+      materialTapTargetSize: m.MaterialTapTargetSize.shrinkWrap,
+      backgroundColor: Colors.transparent,
       selectedColor: d.chipSelected,
-
       checkmarkColor: d.gold,
-
+      side: BorderSide(color: selected ? d.gold.withValues(alpha: 0.5) : d.cardBorder),
     );
 
   }

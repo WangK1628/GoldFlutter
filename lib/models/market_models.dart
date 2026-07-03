@@ -153,6 +153,22 @@ class StockChartPoint {
   final double price;
 }
 
+class StockLookup {
+  const StockLookup({
+    required this.symbol,
+    required this.name,
+    required this.price,
+    required this.changePct,
+    required this.marketLabel,
+  });
+
+  final String symbol;
+  final String name;
+  final String price;
+  final String changePct;
+  final String marketLabel;
+}
+
 enum MainTab { gold, stock, fortune }
 
 enum ViewMode { normal, mini, hidden }

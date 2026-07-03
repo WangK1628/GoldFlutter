@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_design.dart';
@@ -9,6 +9,7 @@ import '../../providers/app_providers.dart';
 import '../../providers/fortune_provider.dart';
 import '../../services/fortune_service.dart';
 import '../../services/window_controller.dart';
+import '../../utils/stock_code.dart';
 import '../widgets/fortune_level_art.dart';
 import 'window_chrome.dart';
 
@@ -23,7 +24,10 @@ class MiniViewLayout {
 
   static double stockHeight() => vPad + visibleRows * rowHeight + 10;
 
-  static Size sizeFor(MarketState state, {FortuneStick? fortune}) {
+  static const ballSize = 58.0;
+
+  static Size sizeFor(MarketState state, {FortuneStick? fortune, bool ball = false}) {
+    if (ball) return const Size(ballSize, ballSize);
     if (state.activeTab == MainTab.fortune) {
       if (fortune != null) return fortuneSize(fortune);
       return const Size(172, 62);
@@ -59,19 +63,22 @@ class _MiniViewState extends ConsumerState<MiniView> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(marketProvider);
+    final cfg = ref.watch(configProvider);
     final fortuneUi = ref.watch(fortuneUiProvider);
+    final ball = cfg.miniBall;
     final stockMode = state.activeTab == MainTab.stock;
     final fortuneMode = state.activeTab == MainTab.fortune;
     final d = context.design;
     final fortuneStick = fortuneUi.daily;
-    final size = MiniViewLayout.sizeFor(state, fortune: fortuneMode ? fortuneStick : null);
+    final size = MiniViewLayout.sizeFor(state, fortune: fortuneMode ? fortuneStick : null, ball: ball);
 
     return SizedBox(
       width: size.width,
       height: size.height,
       child: WindowDragRegion(
         child: GestureDetector(
-          onDoubleTap: _restore,
+          onTap: ball ? _restore : null,
+          onDoubleTap: ball ? null : _restore,
           behavior: HitTestBehavior.opaque,
           child: MouseRegion(
             onEnter: (_) => setState(() => _pillOpacity = 1.0),
@@ -80,11 +87,13 @@ class _MiniViewState extends ConsumerState<MiniView> {
             child: AnimatedOpacity(
               duration: const Duration(milliseconds: 160),
               opacity: _pillOpacity,
-              child: fortuneMode
-                  ? _fortuneShell(fortuneStick, d)
-                  : stockMode
-                      ? _stockShell(state, d)
-                      : _goldShell(state, d),
+              child: ball
+                  ? _ballShell(state, fortuneStick, d)
+                  : fortuneMode
+                      ? _fortuneShell(fortuneStick, d)
+                      : stockMode
+                          ? _stockShell(state, d)
+                          : _goldShell(state, d),
             ),
           ),
         ),
@@ -92,15 +101,142 @@ class _MiniViewState extends ConsumerState<MiniView> {
     );
   }
 
+  /// 当前选中的自选行；未选中时不默认取第一条（避免总显示上证指数）。
+  StockRow? _pickStockRow(MarketState state) {
+    final sel = state.selectedStock;
+    if (sel.isEmpty) return null;
+    for (final row in state.stocks.rows) {
+      if (row.meta.code == sel) return row;
+    }
+    return null;
+  }
+
+  /// 悬浮球：轻透明小圆，单击恢复主界面。
+  Widget _ballShell(MarketState state, FortuneStick? fortune, AppDesign d) {
+    final tab = state.activeTab;
+    if (tab == MainTab.gold) {
+      final price = state.snapshot.cnyPrice;
+      return _ballCircle(
+        d,
+        accent: d.gold,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(FluentIcons.circle_dollar, size: 12, color: d.gold.withValues(alpha: 0.9)),
+            const SizedBox(height: 2),
+            Text(
+              price > 0 ? price.toStringAsFixed(0) : '--',
+              style: TextStyle(
+                color: d.goldLight,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                height: 1,
+                shadows: [Shadow(color: Colors.black.withValues(alpha: 0.9), blurRadius: 6)],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    if (tab == MainTab.stock) {
+      final row = _pickStockRow(state);
+      if (row == null) {
+        return _ballCircle(
+          d,
+          accent: d.gold,
+          child: Icon(FluentIcons.line_chart, size: 18, color: d.gold),
+        );
+      }
+      final pctI = state.stocks.headers.indexOf('涨跌幅');
+      final priceI = state.stocks.headers.indexOf('现价');
+      final pct = pctI >= 0 && pctI < row.cells.length ? row.cells[pctI] : '';
+      final price = priceI >= 0 && priceI < row.cells.length ? row.cells[priceI] : '';
+      final color = pct.startsWith('+') ? d.rise : (pct.startsWith('-') ? d.fall : d.goldLight);
+      final name = stockRowName(row);
+      return _ballCircle(
+        d,
+        accent: color,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              pct.isNotEmpty ? pct.replaceAll('%', '') : '--',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: color,
+                height: 1,
+                shadows: _miniTextShadow(),
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              name.length > 3 ? name.substring(0, 3) : name,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withValues(alpha: 0.95),
+                height: 1,
+                shadows: _miniTextShadow(),
+              ),
+            ),
+            if (price.isNotEmpty)
+              Text(
+                price.replaceAll(RegExp(r'[↑↓]'), ''),
+                style: TextStyle(
+                  fontSize: 8,
+                  color: Colors.white.withValues(alpha: 0.88),
+                  height: 1.1,
+                  shadows: _miniTextShadow(),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+    final level = fortune?.level ?? '签';
+    return _ballCircle(
+      d,
+      accent: d.gold,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('财', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: d.gold, height: 1)),
+          Text(
+            level.length > 2 ? level.substring(0, 2) : level,
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.85), height: 1.1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Shadow> _miniTextShadow() => [
+        Shadow(color: Colors.black.withValues(alpha: 0.85), blurRadius: 5),
+        Shadow(color: Colors.black.withValues(alpha: 0.55), blurRadius: 2),
+      ];
+
+  Widget _ballCircle(AppDesign d, {required Widget child, required Color accent}) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: accent.withValues(alpha: 0.1),
+        border: Border.all(color: accent.withValues(alpha: 0.5), width: 1.0),
+      ),
+      child: Center(child: child),
+    );
+  }
+
   Widget _fortuneShell(FortuneStick? stick, AppDesign d) {
-    final bg = Colors.white.withValues(alpha: 0.7);
     if (stick == null) {
-      return DecoratedBox(
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
-        child: Center(
-          child: Text(
-            '财神签',
-            style: TextStyle(color: d.gold, fontSize: 12, fontWeight: FontWeight.w700),
+      return Center(
+        child: Text(
+          '财神签',
+          style: TextStyle(
+            color: d.gold,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            shadows: [Shadow(color: Colors.black.withValues(alpha: 0.8), blurRadius: 6)],
           ),
         ),
       );
@@ -113,40 +249,45 @@ class _MiniViewState extends ConsumerState<MiniView> {
       '下签' || '下下签' => const Color(0xFF546E7A),
       _ => d.textSecondary,
     };
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          children: [
-            FortuneLevelArt(level: stick.level, size: 38),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Row(
+        children: [
+          FortuneLevelArt(level: stick.level, size: 38),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  stick.level,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: levelColor,
+                    height: 1.1,
+                    shadows: _miniTextShadow(),
+                  ),
+                ),
+                if (stick.title.isNotEmpty)
                   Text(
-                    stick.level,
+                    stick.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: levelColor, height: 1.1),
-                  ),
-                  if (stick.title.isNotEmpty)
-                    Text(
-                      stick.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, color: d.textSecondary.withValues(alpha: 0.85), height: 1.15),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.white.withValues(alpha: 0.92),
+                      height: 1.15,
+                      shadows: _miniTextShadow(),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -171,28 +312,65 @@ class _MiniViewState extends ConsumerState<MiniView> {
     );
   }
 
-  /// 自选迷你：固定高度 + 滚动播报（每次显示 3 条，自下而上）。
+  /// 自选迷你：有选中时只显示该股；否则滚动播报。
   Widget _stockShell(MarketState state, AppDesign d) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: d.miniPill,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
+    final selected = _pickStockRow(state);
+    if (selected != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: _MiniStockLine(row: selected, headers: state.stocks.headers, design: d),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: _MiniStockTicker(state: state, design: d),
+    );
+  }
+}
+
+class _MiniStockLine extends StatelessWidget {
+  const _MiniStockLine({required this.row, required this.headers, required this.design});
+
+  final StockRow row;
+  final List<String> headers;
+  final AppDesign design;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = design;
+    final priceI = headers.indexOf('现价');
+    final pctI = headers.indexOf('涨跌幅');
+    final name = stockRowName(row);
+    final price = priceI >= 0 && priceI < row.cells.length ? row.cells[priceI] : '';
+    final pct = pctI >= 0 && pctI < row.cells.length ? row.cells[pctI] : '';
+    final pctColor = pct.startsWith('+') ? d.rise : (pct.startsWith('-') ? d.fall : Colors.white.withValues(alpha: 0.95));
+    final shadow = [
+      Shadow(color: Colors.black.withValues(alpha: 0.9), blurRadius: 6),
+      Shadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 2),
+    ];
+
+    return Center(
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: name,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white, shadows: shadow),
+            ),
+            const TextSpan(text: '  '),
+            TextSpan(
+              text: price.replaceAll(RegExp(r'[↑↓]'), ''),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: d.goldLight, shadows: shadow),
+            ),
+            const TextSpan(text: '  '),
+            TextSpan(
+              text: pct,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: pctColor, shadows: shadow),
             ),
           ],
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: MiniViewLayout.hPad / 2,
-            vertical: MiniViewLayout.vPad / 2,
-          ),
-          child: _MiniStockTicker(state: state, design: d),
-        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -234,7 +412,7 @@ class _MiniStockTickerState extends State<_MiniStockTicker> {
     final rows = widget.state.stocks.rows;
     if (rows.length <= MiniViewLayout.visibleRows) return;
 
-    _timer = Timer.periodic(const Duration(milliseconds: 45), (_) {
+    _timer = Timer.periodic(const Duration(milliseconds: 80), (_) {
       if (_hovering || !_scroll.hasClients) return;
       final max = _scroll.position.maxScrollExtent;
       if (max <= 0) return;
@@ -286,16 +464,21 @@ class _MiniStockTickerState extends State<_MiniStockTicker> {
           itemExtent: MiniViewLayout.rowHeight,
           itemBuilder: (_, i) {
             final row = board.rows[i];
-            final nameRaw = nameI >= 0 && nameI < row.cells.length ? row.cells[nameI] : '';
+            final nameRaw = nameI >= 0 && nameI < row.cells.length ? stockRowName(row) : '';
             final name = nameRaw.length > 6 ? nameRaw.substring(0, 6) : nameRaw;
             final price = priceI >= 0 && priceI < row.cells.length ? row.cells[priceI] : '';
             final pct = pctI >= 0 && pctI < row.cells.length ? row.cells[pctI] : '';
             return Text(
               '$name  $price  $pct'.trim(),
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
                 color: _lineColor(d, pct),
                 height: 1.2,
+                shadows: [
+                  Shadow(color: Colors.black.withValues(alpha: 0.9), blurRadius: 6),
+                  Shadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 2),
+                ],
               ),
             );
           },
@@ -307,6 +490,6 @@ class _MiniStockTickerState extends State<_MiniStockTicker> {
   Color _lineColor(AppDesign d, String pct) {
     if (pct.startsWith('+')) return d.rise;
     if (pct.startsWith('-')) return d.fall;
-    return d.textSecondary;
+    return Colors.white.withValues(alpha: 0.95);
   }
 }

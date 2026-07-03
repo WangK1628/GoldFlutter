@@ -85,6 +85,8 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
       windowX: c.windowX,
       windowY: c.windowY,
       miniMode: c.miniMode,
+      miniBall: c.miniBall,
+      bossKeyEnabled: c.bossKeyEnabled,
       alerts: c.alerts.map((a) => AlertRule(
             price: a.price,
             direction: a.direction,
@@ -275,6 +277,14 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
             ),
           ),
           _toggle('不在任务栏显示', _draft.hideFromTaskbar, (v) => _draft.hideFromTaskbar = v),
+          _toggle('老板键 Alt+W', _draft.bossKeyEnabled, (v) => _draft.bossKeyEnabled = v),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            child: Text(
+              '全局快捷键：隐藏或唤醒窗口（任意界面生效）',
+              style: TextStyle(fontSize: 11, color: FluentTheme.of(context).inactiveColor),
+            ),
+          ),
         ],
       );
 

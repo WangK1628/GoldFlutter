@@ -9,12 +9,14 @@ import '../providers/app_providers.dart';
 import '../services/autostart_service.dart';
 import '../services/win_mouse.dart';
 import '../services/single_instance.dart';
+import '../services/hotkey_service.dart';
 import '../services/window_controller.dart';
 
 class DesktopBootstrap with WindowListener, TrayListener {
   DesktopBootstrap(this.ref);
 
   final WidgetRef ref;
+  HotkeyService? _hotkey;
 
   Future<void> init() async {
     if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) return;
@@ -28,9 +30,23 @@ class DesktopBootstrap with WindowListener, TrayListener {
       await AutostartService.setEnabled(true);
     }
     await TrayService.syncShowLabel(ref.read(windowControllerProvider));
+    Future.delayed(const Duration(milliseconds: 800), restartHotkey);
   }
 
+  void _initBossKey() {
+    final cfg = ref.read(configProvider);
+    _hotkey?.stop();
+    if (!cfg.bossKeyEnabled) return;
+    _hotkey = HotkeyService(
+      onToggle: () => ref.read(windowControllerProvider.notifier).toggleBossKey(),
+    );
+    _hotkey!.start(enabled: cfg.bossKeyEnabled);
+  }
+
+  void restartHotkey() => _initBossKey();
+
   void dispose() {
+    _hotkey?.stop();
     windowManager.removeListener(this);
     trayManager.removeListener(this);
     ref.read(windowControllerProvider.notifier).disposeLayerPolicy();
@@ -81,6 +97,8 @@ class DesktopBootstrap with WindowListener, TrayListener {
         ctrl.showMainGold();
       case 'mini':
         ctrl.enterMini();
+      case 'ball':
+        ctrl.enterBall();
       case 'refresh':
         ref.read(marketProvider.notifier).refreshAll();
       case 'settings':

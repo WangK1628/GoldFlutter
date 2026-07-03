@@ -106,11 +106,12 @@ class WindowController extends StateNotifier<ViewMode> {
 
   Future<void> _prepareMini() async {
     final market = ref.read(marketProvider);
+    final cfg = ref.read(configProvider);
     FortuneStick? fortune;
     if (market.activeTab == MainTab.fortune) {
       fortune = ref.read(fortuneUiProvider).daily;
     }
-    final size = MiniViewLayout.sizeFor(market, fortune: fortune);
+    final size = MiniViewLayout.sizeFor(market, fortune: fortune, ball: cfg.miniBall);
 
     await windowManager.setMinimumSize(const Size(1, 1));
     await windowManager.setSize(size);
@@ -140,7 +141,29 @@ class WindowController extends StateNotifier<ViewMode> {
     }
   }
 
-  Future<void> enterMini() => applyMode(ViewMode.mini);
+  Future<void> enterMini() async {
+    ref.read(configProvider.notifier).update((c) {
+      c.miniBall = false;
+      return c;
+    });
+    await applyMode(ViewMode.mini);
+  }
+
+  Future<void> enterBall() async {
+    ref.read(configProvider.notifier).update((c) {
+      c.miniBall = true;
+      return c;
+    });
+    await applyMode(ViewMode.mini);
+  }
+
+  Future<void> toggleBossKey() async {
+    if (state == ViewMode.hidden) {
+      await showNormal();
+    } else {
+      await hide();
+    }
+  }
   Future<void> showNormal() => applyMode(ViewMode.normal);
 
   Future<void> hide() => _performHide(updateState: true);
@@ -311,6 +334,7 @@ class TrayService {
       items: [
         MenuItem(key: 'show', label: '显示主界面'),
         MenuItem(key: 'mini', label: '迷你模式'),
+        MenuItem(key: 'ball', label: '悬浮球'),
         MenuItem(key: 'refresh', label: '刷新'),
         MenuItem.separator(),
         MenuItem(key: 'settings', label: '设置'),

@@ -4,6 +4,12 @@ flutter pub get
 flutter run -d windows
 
 
+
+it pull
+添加修改：git add .（添加当前目录所有修改）
+提交到本地：git commit -m "第二次提交"
+推送到远程：git push origin master
+
 打包
 cd g:\Tailscale\flutterp
 powershell -ExecutionPolicy Bypass -File scripts\build_release.ps1

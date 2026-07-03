@@ -14,6 +14,7 @@ import '../../services/window_layout.dart';
 import '../widgets/mini_view.dart';
 import '../widgets/nav_bar.dart';
 import '../widgets/status_bar.dart';
+import '../widgets/notification_toast.dart';
 import '../widgets/toast.dart';
 import '../widgets/window_chrome.dart';
 import 'gold_tab.dart';
@@ -39,27 +40,31 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   Future<void> _bootstrapApp() async {
-    await ref.read(configProvider.notifier).load();
-    final cfg = ref.read(configProvider);
-    if (cfg.lastTab == 'stock' && cfg.stockBoard) {
-      ref.read(marketProvider.notifier).setTab(MainTab.stock);
-    } else if (cfg.lastTab == 'fortune') {
-      ref.read(marketProvider.notifier).setTab(MainTab.fortune);
+    try {
+      await ref.read(configProvider.notifier).load();
+      final cfg = ref.read(configProvider);
+      if (cfg.lastTab == 'stock' && cfg.stockBoard) {
+        ref.read(marketProvider.notifier).setTab(MainTab.stock);
+      } else if (cfg.lastTab == 'fortune') {
+        ref.read(marketProvider.notifier).setTab(MainTab.fortune);
+      }
+      if (cfg.selectedCode.isNotEmpty) {
+        await ref.read(marketProvider.notifier).selectStock(cfg.selectedCode);
+      }
+
+      if (mounted) setState(() => _ready = true);
+
+      await ref.read(marketProvider.notifier).init();
+      await ref.read(fortuneUiProvider.notifier).load();
+
+      _bootstrap = DesktopBootstrap(ref);
+      await _bootstrap!.init();
+      await ref.read(windowControllerProvider.notifier).restoreGeometry(cfg);
+      final initial = ref.read(windowControllerProvider.notifier).initialMode(cfg);
+      await ref.read(windowControllerProvider.notifier).applyMode(initial);
+    } catch (_) {
+      if (mounted) setState(() => _ready = true);
     }
-    if (cfg.selectedCode.isNotEmpty) {
-      await ref.read(marketProvider.notifier).selectStock(cfg.selectedCode);
-    }
-    await ref.read(marketProvider.notifier).init();
-
-    await ref.read(fortuneUiProvider.notifier).load();
-
-    _bootstrap = DesktopBootstrap(ref);
-    await _bootstrap!.init();
-    await ref.read(windowControllerProvider.notifier).restoreGeometry(cfg);
-    final initial = ref.read(windowControllerProvider.notifier).initialMode(cfg);
-    await ref.read(windowControllerProvider.notifier).applyMode(initial);
-
-    if (mounted) setState(() => _ready = true);
   }
 
   @override
@@ -122,6 +127,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     });
     ref.listen(configProvider, (prev, next) {
       _syncNormalSize();
+      if (prev?.bossKeyEnabled != next.bossKeyEnabled) {
+        _bootstrap?.restartHotkey();
+      }
       if (prev?.alwaysOnTop != next.alwaysOnTop ||
           prev?.hideFromTaskbar != next.hideFromTaskbar ||
           prev?.opacity != next.opacity ||
@@ -131,6 +139,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
     });
     ref.listen(windowControllerProvider, (_, mode) {
+      ref.read(marketProvider.notifier).onViewModeChanged(mode);
       if (mode == ViewMode.normal) _syncNormalSize();
       if (mode == ViewMode.mini) _syncMiniSize();
     });
@@ -171,6 +180,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         clipBehavior: Clip.none,
         children: [
           const Material(type: MaterialType.transparency, child: MiniView()),
+          const NotificationOverlay(),
           if (toast != null) _Toast(text: toast),
         ],
       );
@@ -205,6 +215,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           ),
         ),
         if (toast != null) _Toast(text: toast),
+        const NotificationOverlay(),
       ],
     );
   }

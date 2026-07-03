@@ -92,6 +92,7 @@ class _NavBarState extends ConsumerState<NavBar> {
           _iconBtn(FluentIcons.refresh, '刷新', () => ref.read(marketProvider.notifier).refreshAll()),
           _iconBtn(FluentIcons.settings, '设置', widget.onSettings),
           _iconBtn(FluentIcons.mini_contract, '迷你模式', () => ref.read(windowControllerProvider.notifier).enterMini()),
+          _iconBtn(FluentIcons.circle_ring, '悬浮球', () => ref.read(windowControllerProvider.notifier).enterBall()),
           _iconBtn(FluentIcons.chrome_minimize, '最小化', () => ref.read(windowControllerProvider.notifier).onMinimizeRequested()),
           _iconBtn(FluentIcons.chrome_close, '关闭', () {
             WinMouse.prepareForHide();
