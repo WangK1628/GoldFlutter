@@ -70,6 +70,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   void _syncNormalSize() {
     if (ref.read(windowControllerProvider) != ViewMode.normal) return;
+    if (ref.read(settingsDialogActiveProvider)) return;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final state = ref.read(marketProvider);
       final cfg = ref.read(configProvider);
@@ -90,14 +91,24 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       await ref.read(windowControllerProvider.notifier).showNormal();
       if (!mounted) return;
     }
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierColor: Colors.black.withValues(alpha: 0.45),
-      builder: (_) => const SettingsDialog(),
-    );
-    if (mounted) {
-      await ref.read(windowControllerProvider.notifier).syncAlwaysOnTop();
+    final ctrl = ref.read(windowControllerProvider.notifier);
+    ref.read(settingsDialogActiveProvider.notifier).state = true;
+    try {
+      await ctrl.prepareForSettings();
+      if (!mounted) return;
+      ctrl.yieldSmartLayer('settings');
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierColor: Colors.black.withValues(alpha: 0.45),
+        builder: (_) => const SettingsDialog(),
+      );
+    } finally {
+      ref.read(settingsDialogActiveProvider.notifier).state = false;
+      if (mounted) {
+        await ctrl.restoreAfterSettings();
+        await ctrl.resumeSmartLayer('settings');
+      }
     }
   }
 

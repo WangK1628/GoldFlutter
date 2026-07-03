@@ -11,6 +11,10 @@ class WindowLayout {
   static const wPad = 20.0;
   static const minWidth = 300.0;
   static const maxWidth = 900.0;
+  static const settingsMinWidth = 560.0;
+  static const settingsMinHeight = 540.0;
+  static const settingsDialogWidth = 520.0;
+  static const settingsDialogHeight = 460.0;
   static const detailPanelW = 252.0;
   static const millionairePanelW = 220.0;
   static const priceBlockH = 108.0;

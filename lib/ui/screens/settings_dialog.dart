@@ -5,6 +5,7 @@ import '../../core/app_design.dart';
 import '../../models/app_config.dart';
 import '../../providers/app_providers.dart';
 import '../../services/autostart_service.dart';
+import '../../services/window_layout.dart';
 import '../../services/window_controller.dart';
 
 class SettingsDialog extends ConsumerStatefulWidget {
@@ -116,18 +117,22 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
     (FluentIcons.code, '高级'),
   ];
 
+  static const _dialogW = WindowLayout.settingsDialogWidth;
+  static const _dialogH = WindowLayout.settingsDialogHeight;
+  static const _navW = 128.0;
+
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    final screen = MediaQuery.sizeOf(context);
-    final dialogH = (screen.height * 0.82).clamp(460.0, 680.0);
-    final dialogW = (screen.width - 40).clamp(520.0, 640.0);
 
     return ContentDialog(
-      constraints: BoxConstraints(maxWidth: dialogW + 32, maxHeight: dialogH),
+      constraints: const BoxConstraints(
+        maxWidth: _dialogW + 32,
+        maxHeight: _dialogH + 120,
+      ),
       content: SizedBox(
-        width: dialogW,
-        height: dialogH - 56,
+        width: _dialogW,
+        height: _dialogH,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -154,7 +159,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Container(
-                    width: 128,
+                    width: _navW,
                     decoration: BoxDecoration(
                       color: theme.resources.cardStrokeColorDefault.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8),
@@ -261,11 +266,11 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
           _toggle('开机自动启动', _draft.startOnBoot, (v) => _draft.startOnBoot = v),
           _toggle('最小化到托盘', _draft.minimizeToTray, (v) => _draft.minimizeToTray = v),
           _toggle('关闭隐藏到托盘', _draft.closeHides, (v) => _draft.closeHides = v),
-          _toggle('聚焦时置顶', _draft.alwaysOnTop, (v) => _draft.alwaysOnTop = v),
+          _toggle('智能浮层', _draft.alwaysOnTop, (v) => _draft.alwaysOnTop = v),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 6),
             child: Text(
-              '失去焦点时自动取消置顶，不影响截图和其他应用',
+              '主界面保持在普通窗口之上；迷你模式默认开启。截屏、任务栏、托盘菜单、设置时自动让路。',
               style: TextStyle(fontSize: 11, color: FluentTheme.of(context).inactiveColor),
             ),
           ),

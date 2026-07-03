@@ -33,6 +33,7 @@ class DesktopBootstrap with WindowListener, TrayListener {
   void dispose() {
     windowManager.removeListener(this);
     trayManager.removeListener(this);
+    ref.read(windowControllerProvider.notifier).disposeLayerPolicy();
   }
 
   @override
@@ -65,6 +66,10 @@ class DesktopBootstrap with WindowListener, TrayListener {
 
   @override
   void onTrayIconRightMouseDown() {
+    ref.read(windowControllerProvider.notifier).yieldSmartLayer(
+          'tray_menu',
+          autoResume: const Duration(seconds: 10),
+        );
     trayManager.popUpContextMenu();
   }
 

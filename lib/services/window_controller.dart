@@ -13,10 +13,14 @@ import '../providers/fortune_provider.dart';
 import '../services/autostart_service.dart';
 import '../services/fortune_service.dart';
 import '../services/win_mouse.dart';
+import '../services/window_layer_policy.dart';
 import '../services/window_layout.dart';
 import '../ui/widgets/mini_view.dart';
 
 final settingsOpenProvider = StateProvider<bool>((ref) => false);
+
+/// 设置弹窗已打开 — 阻止主界面按标签页自动缩窗。
+final settingsDialogActiveProvider = StateProvider<bool>((ref) => false);
 
 /// 全透明窗口背景 — 圆角由 Flutter ClipRRect 绘制，避免方形棱角。
 const _transparent = Color(0x00000000);
@@ -25,8 +29,9 @@ class WindowController extends StateNotifier<ViewMode> {
   WindowController(this.ref) : super(ViewMode.normal);
 
   final Ref ref;
-  bool _preferAlwaysOnTop = false;
+  late final WindowLayerPolicy _layer = WindowLayerPolicy(ref);
   bool _hiding = false;
+  Size? _preSettingsSize;
 
   ViewMode initialMode(AppConfig cfg) {
     if (cfg.startInTray || cfg.startMinimized) return ViewMode.hidden;
@@ -70,7 +75,7 @@ class WindowController extends StateNotifier<ViewMode> {
         await windowManager.show();
         await _restoreMouseAfterShow();
         await windowManager.focus();
-        await syncAlwaysOnTop(focused: true);
+        await _layer.sync(mode);
       case ViewMode.mini:
         state = mode;
         await WidgetsBinding.instance.endOfFrame;
@@ -79,7 +84,7 @@ class WindowController extends StateNotifier<ViewMode> {
         await _restoreMouseAfterShow();
         await _prepareMini();
         await windowManager.focus();
-        await syncAlwaysOnTop(focused: true);
+        await _layer.sync(mode);
     }
 
     await ref.read(configProvider.notifier).save();
@@ -181,6 +186,38 @@ class WindowController extends StateNotifier<ViewMode> {
     ref.read(settingsOpenProvider.notifier).state = true;
   }
 
+  /// 窄窗口（黄金/签页）打开设置前临时放大，保证竖排设置页完整显示。
+  Future<void> prepareForSettings() async {
+    if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) return;
+    final size = await windowManager.getSize();
+    const minW = WindowLayout.settingsMinWidth;
+    const minH = WindowLayout.settingsMinHeight;
+    if (size.width >= minW && size.height >= minH) return;
+    _preSettingsSize = size;
+    await windowManager.setMinimumSize(const Size(1, 1));
+    await windowManager.setSize(Size(
+      size.width < minW ? minW : size.width,
+      size.height < minH ? minH : size.height,
+    ));
+  }
+
+  Future<void> restoreAfterSettings() async {
+    if (_preSettingsSize == null) return;
+    if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
+      _preSettingsSize = null;
+      return;
+    }
+    final target = _preSettingsSize!;
+    _preSettingsSize = null;
+    await windowManager.setMinimumSize(const Size(1, 1));
+    await windowManager.setSize(target);
+    if (state == ViewMode.normal) {
+      await windowManager.setMinimumSize(const Size(WindowLayout.navMinWidth, 260));
+    } else if (state == ViewMode.mini) {
+      await _prepareMini();
+    }
+  }
+
   Future<void> onCloseRequested() async {
     WinMouse.prepareForHide();
     await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -224,29 +261,28 @@ class WindowController extends StateNotifier<ViewMode> {
     await applyWindowFlags(cfg);
   }
 
-  /// 置顶仅在窗口聚焦时生效，避免截图/其他应用被挡住。
-  Future<void> syncAlwaysOnTop({bool? focused}) async {
-    if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) return;
-    if (!_preferAlwaysOnTop) {
-      await windowManager.setAlwaysOnTop(false);
-      return;
-    }
-    final isFocused = focused ?? await windowManager.isFocused();
-    await windowManager.setAlwaysOnTop(isFocused);
-  }
+  /// 智能浮层同步（兼容旧调用）。
+  Future<void> syncAlwaysOnTop({bool? focused}) => _layer.sync(state);
 
   Future<void> onWindowFocusChanged(bool focused) async {
-    await syncAlwaysOnTop(focused: focused);
+    await _layer.onFocusChanged(focused, state);
   }
+
+  void yieldSmartLayer(String reason, {Duration? autoResume}) {
+    _layer.suspend(reason, autoResume: autoResume);
+  }
+
+  Future<void> resumeSmartLayer([String? reason]) => _layer.resume(reason, state);
+
+  void disposeLayerPolicy() => _layer.dispose();
 
   Future<void> applyWindowFlags(AppConfig cfg) async {
     if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) return;
-    _preferAlwaysOnTop = cfg.alwaysOnTop;
     await windowManager.setSkipTaskbar(cfg.hideFromTaskbar);
     await windowManager.setOpacity(cfg.opacity);
     await windowManager.setBackgroundColor(_transparent);
     await _setWindowShadow(false);
-    await syncAlwaysOnTop();
+    await _layer.sync(state);
   }
 
   Future<void> syncMiniSize() async {
